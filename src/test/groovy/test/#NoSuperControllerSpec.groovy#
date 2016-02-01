@@ -1,0 +1,1930 @@
+package test
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+<< 13Static Type Checking And Compilation
+15Internationalization >>
+14 Testing - Reference Documentation
+
+Authors: Graeme Rocher, Peter Ledbrook, Marc Palmer, Jeff Brown, Luke Daley, Burt Beckwith, Lari Hotari
+
+Version: 3.0.13
+Table of Contents
+14.1Unit Testing
+14.1.1Unit Testing Controllers
+14.1.2Unit Testing Tag Libraries
+14.1.3Unit Testing Domains
+14.1.4Unit Testing Filters
+14.1.5Unit Testing URL Mappings
+14.1.6Mocking Collaborators
+14.1.7Mocking Codecs
+14.1.8Unit Test Metaprogramming
+14.2Integration Testing
+14.3Functional Testing
+14 Testing
+Automated testing is a key part of Grails. Hence, Grails provides many ways to making testing easier from low level unit testing to high level functional tests. This section details the different capabilities that Grails offers for testing.
+
+Grails 1.3.x and below used the grails.test.GrailsUnitTestCase class hierarchy for testing in a JUnit 3 style. Grails 2.0.x and above deprecates these test harnesses in favour of mixins that can be applied to a range of different kinds of tests (JUnit 3, JUnit 4, Spock etc.) without subclassing 
+
+The first thing to be aware of is that all of the create-* and generate-* commands create unit or integration tests automatically. For example if you run the create-controller command as follows:
+
+grails create-controller com.acme.app.simple
+
+Grails will create a controller at grails-app/controllers/com/acme/app/SimpleController.groovy, and also a unit test at test/unit/com/acme/app/SimpleControllerTests.groovy. What Grails won't do however is populate the logic inside the test! That is left up to you.
+
+    The default class name suffix is Tests but as of Grails 1.2.2, the suffix of Test is also supported. 
+
+Running Tests
+
+Tests are run with the test-app command:
+
+grails test-app
+
+The command will produce output such as:
+
+-------------------------------------------------------
+Running Unit Testsâ¦
+Running test FooTests...FAILURE
+Unit Tests Completed in 464ms â¦
+-------------------------------------------------------
+
+Tests failed: 0 errors, 1 failures
+
+whilst showing the reason for each test failure.
+
+    You can force a clean before running tests by passing -clean to the test-app command. 
+
+Grails writes both plain text and HTML test reports to the target/test-reports directory, along with the original XML files. The HTML reports are generally the best ones to look at.
+
+Using Grails' interactive mode confers some distinct advantages when executing tests. First, the tests will execute significantly faster on the second and subsequent runs. Second, a shortcut is available to open the HTML reports in your browser:
+
+open test-report
+
+You can also run your unit tests from within most IDEs.
+
+Targeting Tests
+
+You can selectively target the test(s) to be run in different ways. To run all tests for a controller named SimpleController you would run:
+
+grails test-app SimpleController
+
+This will run any tests for the class named SimpleController. Wildcards can be used...
+
+grails test-app *Controller
+
+This will test all classes ending in Controller. Package names can optionally be specified...
+
+grails test-app some.org.*Controller
+
+or to run all tests in a package...
+
+grails test-app some.org.*
+
+or to run all tests in a package including subpackages...
+
+grails test-app some.org.**.*
+
+You can also target particular test methods...
+
+grails test-app SimpleController.testLogin
+
+This will run the testLogin test in the SimpleController tests. You can specify as many patterns in combination as you like...
+
+grails test-app some.org.* SimpleController.testLogin BookController
+
+If you only wish to re-run failed tests use the -rerun flag
+
+grails test-app -rerun
+
+Targeting Test Phases
+
+In addition to targeting certain tests, you can also target test phases. By default Grails has two testing phases unit and integration.
+
+Grails 2.x uses phase:type syntax. In Grails 3.0 it was removed, because it made no sense in Gradle context. 
+
+To execute unit tests you can run:
+
+grails test-app -unit
+
+To run integration tests you would run...
+
+grails test-app -integration
+
+Targeting Tests When Using Phases
+
+Test and phase targeting can be applied at the same time:
+
+grails test-app some.org.**.* -unit
+
+This would run all tests in the unit phase that are in the package some.org or a subpackage.
+14.1 Unit Testing
+Unit testing are tests at the "unit" level. In other words you are testing individual methods or blocks of code without consideration for surrounding infrastructure. Unit tests are typically run without the presence of physical resources that involve I/O such databases, socket connections or files. This is to ensure they run as quick as possible since quick feedback is important.
+
+The Test Mixins
+
+Since Grails 2.0, a collection of unit testing mixins is provided by Grails that lets you enhance the behavior of a typical JUnit 3, JUnit 4 or Spock test. The following sections cover the usage of these mixins.
+
+The previous JUnit 3-style GrailsUnitTestCase class hierarchy is still present in Grails for backwards compatibility, but is now deprecated. The previous documentation on the subject can be found in the Grails 1.3.x documentation 
+
+You won't normally have to import any of the testing classes because Grails does that for you. But if you find that your IDE for example can't find the classes, here they all are:
+
+    grails.test.mixin.TestFor
+    grails.test.mixin.Mock
+    grails.test.mixin.TestMixin
+    grails.test.mixin.support.GrailsUnitTestMixin
+    grails.test.mixin.domain.DomainClassUnitTestMixin
+    grails.test.mixin.services.ServiceUnitTestMixin
+    grails.test.mixin.web.ControllerUnitTestMixin
+    grails.test.mixin.web.FiltersUnitTestMixin
+    grails.test.mixin.web.GroovyPageUnitTestMixin
+    grails.test.mixin.web.UrlMappingsUnitTestMixin
+    grails.test.mixin.hibernate.HibernateTestMixin
+
+Note that you're only ever likely to use the first two explicitly. The rest are there for reference.
+
+Test Mixin Basics
+
+Most testing can be achieved via the TestFor annotation in combination with the Mock annotation for mocking collaborators. For example, to test a controller and associated domains you would define the following:
+
+@TestFor(BookController)
+@Mock([Book, Author, BookService])
+
+The TestFor annotation defines the class under test and will automatically create a field for the type of class under test. For example in the above case a "controller" field will be present, however if TestFor was defined for a service a "service" field would be created and so on.
+
+The Mock annotation creates mock version of any collaborators. There is an in-memory implementation of GORM that will simulate most interactions with the GORM API.
+
+doWithSpring and doWithConfig callback methods, FreshRuntime annotation
+
+The doWithSpring callback method can be used to add beans with the BeanBuilder DSL. There is the doWithConfig callback method for changing the grailsApplication.config values before the grailsApplication instance of the test runtime gets initialized.
+
+import grails.test.mixin.support.GrailsUnitTestMixin
+
+import org.junit.ClassRule
+import org.junit.rules.TestRule
+
+import spock.lang.Ignore;
+import spock.lang.IgnoreRest
+import spock.lang.Shared;
+import spock.lang.Specification
+
+@TestMixin(GrailsUnitTestMixin)
+class StaticCallbacksSpec extends Specification {
+    static doWithSpring = {
+        myService(MyService)
+    }
+
+    static doWithConfig(c) {
+        c.myConfigValue = 'Hello'
+    }
+
+    def "grailsApplication is not null"() {
+        expect:
+        grailsApplication != null
+    }
+
+    def "doWithSpring callback is executed"() {
+        expect:
+        grailsApplication.mainContext.getBean('myService') != null
+    }
+
+    def "doWithConfig callback is executed"(){
+        expect:
+        config.myConfigValue == 'Hello'
+    }
+}
+
+You can also use these callbacks without "static" together with the grails.test.runtime.FreshRuntime annotation. In this case, a clean application context and grails application instance is initialized for each test method call.
+
+import grails.test.mixin.support.GrailsUnitTestMixin
+import grails.test.runtime.FreshRuntime;
+
+import org.junit.ClassRule
+import org.junit.rules.TestRule
+
+import spock.lang.Ignore;
+import spock.lang.IgnoreRest
+import spock.lang.Shared;
+import spock.lang.Specification
+
+@FreshRuntime
+@TestMixin(GrailsUnitTestMixin)
+class TestInstanceCallbacksSpec extends Specification {
+    def doWithSpring = {
+        myService(MyService)
+    }
+
+    def doWithConfig(c) {
+        c.myConfigValue = 'Hello'
+    }
+
+    def "grailsApplication is not null"() {
+        expect:
+        grailsApplication != null
+    }
+
+    def "doWithSpring callback is executed"() {
+        expect:
+        grailsApplication.mainContext.getBean('myService') != null
+    }
+
+    def "doWithConfig callback is executed"(){
+        expect:
+        config.myConfigValue == 'Hello'
+    }
+}
+
+You can use org.grails.spring.beans.factory.InstanceFactoryBean together with doWithSpring and the FreshRuntime annotation to mock beans in tests.
+
+import grails.test.mixin.support.GrailsUnitTestMixin
+import grails.test.runtime.FreshRuntime
+
+import org.grails.spring.beans.factory.InstanceFactoryBean
+import org.junit.ClassRule
+
+import spock.lang.Shared
+import spock.lang.Specification
+
+@FreshRuntime
+@TestMixin(GrailsUnitTestMixin)
+class MockedBeanSpec extends Specification {
+    def myService=Mock(MyService)
+
+    def doWithSpring = {
+        myService(InstanceFactoryBean, myService, MyService)
+    }
+
+    def "doWithSpring callback is executed"() {
+        when:
+        def myServiceBean=grailsApplication.mainContext.getBean('myService')
+        myServiceBean.prova()
+        then:
+        1 * myService.prova() >> { true }
+    }
+}
+
+The DirtiesRuntime annotation
+
+Test methods may be marked with the grails.test.runtime.DirtiesRuntime annotation to indicate that the test modifies the runtime in ways which might be problematic for other tests and as such the runtime should be refreshed after this test method runs.
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+import grails.test.runtime.DirtiesRuntime
+
+@TestFor(PersonController)
+class PersonControllerSpec extends Specification {
+
+    @DirtiesRuntime
+    void "a test method which modifies the runtime"() {
+        when:
+        Person.metaClass.someMethod = { â¦ }
+        // ...
+
+        then:
+        // â¦
+    }
+
+    void "a test method which should not be affected by the previous test method"() {
+        // â¦
+    }
+}
+
+Sharing test runtime grailsApplication instance and beans for several test classes
+
+It's possible to share a single grailsApplication instance and beans for several test classes. This feature is activated by the SharedRuntime annotation. This annotation takes an optional class parameter implements SharedRuntimeConfigurer interface. All test classes referencing the same SharedRuntimeConfigurer implementation class will share the same runtime during a single test run. The value class for SharedRuntimeConfigurer annotation can also implement TestEventInterceptor . In this case the instance of the class will be registered as a test event interceptor for the test runtime.
+
+Loading application beans in unit tests
+
+Adding static loadExternalBeans = true field definition to a unit test class makes the Grails unit test runtime load all bean definitions from grails-app/conf/spring/resources.groovy and grails-app/conf/spring/resources.xml files.
+
+import spock.lang.Issue
+import spock.lang.Specification
+import grails.test.mixin.support.GrailsUnitTestMixin
+
+@TestMixin(GrailsUnitTestMixin)
+class LoadExternalBeansSpec extends Specification {
+    static loadExternalBeans = true
+
+    void "should load external beans"(){
+        expect:
+        applicationContext.getBean('simpleBean') == 'Hello world!'
+    }
+}
+
+14.1.1 Unit Testing Controllers
+The Basics
+
+You use the grails.test.mixin.TestFor annotation to unit test controllers. Using TestFor in this manner activates the grails.test.mixin.web.ControllerUnitTestMixin and its associated API. For example:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void "test something"() {
+    }
+}
+
+Adding the TestFor annotation to a controller causes a new controller field to be automatically created for the controller under test.
+
+    The TestFor annotation will also automatically annotate any public methods starting with "test" with JUnit 4's @Test annotation. If any of your test method don't start with "test" just add this manually 
+
+To test the simplest "Hello World"-style example you can do the following:
+
+// Test class
+class SimpleController {
+    def hello() {
+        render "hello"
+    }
+}
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void "test hello"() {
+        when:
+        controller.hello()
+
+        then:
+        response.text == 'hello'
+    }
+}
+
+The response object is an instance of GrailsMockHttpServletResponse (from the package org.codehaus.groovy.grails.plugins.testing) which extends Spring's MockHttpServletResponse class and has a number of useful methods for inspecting the state of the response.
+
+For example to test a redirect you can use the redirectedUrl property:
+
+class SimpleController {
+    def index() {
+        redirect action: 'hello'
+    }
+    â¦
+}
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test index'() {
+        when:
+        controller.index()
+
+        then:
+        response.redirectedUrl == '/simple/hello'
+    }
+}
+
+Many actions make use of the parameter data associated with the request. For example, the 'sort', 'max', and 'offset' parameters are quite common. Providing these in the test is as simple as adding appropriate values to a special params variable:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(PersonController)
+class PersonControllerSpec extends Specification {
+
+    void 'test list'() {
+        when:
+        params.sort = 'name'
+        params.max = 20
+        params.offset = 0
+        controller.list()
+
+        then:
+        // â¦
+    }
+}
+
+You can even control what type of request the controller action sees by setting the method property of the mock request:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(PersonController)
+class PersonControllerSpec extends Specification {
+
+    void 'test save'() {
+        when:
+        request.method = 'POST'
+        controller.save()
+
+        then:
+        // â¦
+    }
+}
+
+This is particularly important if your actions do different things depending on the type of the request. Finally, you can mark a request as AJAX like so:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(PersonController)
+class PersonControllerSpec extends Specification {
+
+    void 'test list'() {
+        when:
+        request.method = 'POST'
+        request.makeAjaxRequest()
+        controller.getPage()
+
+        then:
+        // â¦
+    }
+}
+
+You only need to do this though if the code under test uses the xhr property on the request.
+
+Testing View Rendering
+
+To test view rendering you can inspect the state of the controller's modelAndView property (an instance of org.springframework.web.servlet.ModelAndView) or you can use the view and model properties provided by the mixin:
+
+class SimpleController {
+    def home() {
+        render view: "homePage", model: [title: "Hello World"]
+    }
+    â¦
+}
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test home'() {
+        when:
+        controller.home()
+
+        then:
+        view == '/simple/homePage'
+        model.title == 'Hello World'
+    }
+}
+
+Note that the view string is the absolute view path, so it starts with a '/' and will include path elements, such as the directory named after the action's controller.
+
+Testing Template Rendering
+
+Unlike view rendering, template rendering will actually attempt to write the template directly to the response rather than returning a ModelAndView hence it requires a different approach to testing.
+
+Consider the following controller action:
+
+class SimpleController {
+    def display() {
+        render template:"snippet"
+    }
+}
+
+In this example the controller will look for a template in grails-app/views/simple/_snippet.gsp. You can test this as follows:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test display'() {
+        when:
+        controller.display()
+
+        then:
+        response.text == 'contents of the template'
+    }
+}
+
+However, you may not want to render the real template, but just test that is was rendered. In this case you can provide mock Groovy Pages:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test display with mock template'() {
+        when:
+        views['/simple/_snippet.gsp'] = 'mock template contents'
+        controller.display()
+
+        then:
+        response.text == 'mock template contents'
+    }
+}
+
+Testing Actions Which Return A Map
+
+When a controller action returns a java.util.Map that Map may be inspected directly to assert that it contains the expected data:
+
+class SimpleController {
+    def showBookDetails() {
+        [title: 'The Nature Of Necessity', author: 'Alvin Plantinga']
+    }
+}
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test show book details'() {
+        when:
+        def model = controller.showBookDetails()
+
+        then:
+        model.author == 'Alvin Plantinga'
+    }
+}
+
+Testing XML and JSON Responses
+
+XML and JSON response are also written directly to the response. Grails' mocking capabilities provide some conveniences for testing XML and JSON response. For example consider the following action:
+
+    def renderXml() {
+        render(contentType:"text/xml") {
+            book(title:"Great")
+        }
+    }
+
+This can be tested using the xml property of the response:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test render xml'() {
+        when:
+        controller.renderXml()
+
+        then:
+        response.text == "<book title='Great'/>"
+        response.xml.@title.text() == 'Great'
+    }
+}
+
+The xml property is a parsed result from Groovy's XmlSlurper class which is very convenient for parsing XML.
+
+Testing JSON responses is pretty similar, instead you use the json property:
+
+// controller action
+def renderJson() {
+    render(contentType:"application/json") {
+        book = "Great"
+    }
+}
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test render json'() {
+        when:
+        controller.renderJson()
+
+        then:
+        response.text == '{"book":"Great"}'
+        response.json.book == 'Great'
+    }
+}
+
+The json property is an instance of org.codehaus.groovy.grails.web.json.JSONElement which is a map-like structure that is useful for parsing JSON responses.
+
+Testing XML and JSON Requests
+
+Grails provides various convenient ways to automatically parse incoming XML and JSON packets. For example you can bind incoming JSON or XML requests using Grails' data binding:
+
+def consumeBook(Book b) {
+    render "The title is ${b.title}."
+}
+
+To test this Grails provides an easy way to specify an XML or JSON packet via the xml or json properties. For example the above action can be tested by specifying a String containing the XML:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+@Mock([Book])
+class SimpleControllerSpec extends Specification {
+    void 'test consume book xml'() {
+        when:
+        request.xml = '<book><title>Wool</title></book>'
+        controller.consumeBook()
+
+        then:
+        response.text == 'The title is Wool.'
+    }
+}
+
+Or alternatively a domain instance can be specified and it will be auto-converted into the appropriate XML request:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+@Mock([Book])
+class SimpleControllerSpec extends Specification {
+
+    void 'test consume book xml'() {
+        when:
+        request.xml = new Book(title: 'Shift')
+        controller.consumeBook()
+
+        then:
+        response.text == 'The title is Shift.'
+    }
+}
+
+The same can be done for JSON requests:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+@Mock([Book])
+class SimpleControllerSpec extends Specification {
+
+    void 'test consume book json'() {
+        when:
+        request.json = new Book(title: 'Shift')
+        controller.consumeBook()
+
+        then:
+        response.text == 'The title is Shift.'
+    }
+}
+
+If you prefer not to use Grails' data binding but instead manually parse the incoming XML or JSON that can be tested too. For example consider the controller action below:
+
+def consume() {
+    request.withFormat {
+        xml {
+            render "The XML Title Is ${request.XML.@title}."
+        }
+        json {
+            render "The JSON Title Is ${request.JSON.title}."
+        }
+    }
+}
+
+To test the XML request you can specify the XML as a string:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test consume xml'() {
+        when:
+        request.xml = '<book title="The Stand"/>'
+        controller.consume()
+
+        then:
+        response.text == 'The XML Title Is The Stand.'
+    }
+
+    void 'test consume json'() {
+        when:
+        request.json = '{title:"The Stand"}'
+        controller.consume()
+
+        then:
+        response.text == 'The JSON Title Is The Stand.'
+    }
+}
+
+Testing Mime Type Handling
+
+You can test mime type handling and the withFormat method quite simply by setting the request's contentType attribute:
+
+// controller action
+def sayHello() {
+    def data = [Hello:"World"]
+    request.withFormat {
+        xml { render data as grails.converters.XML }
+        json { render data as grails.converters.JSON }
+        html data
+    }
+}
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test say hello xml'() {
+        when:
+        request.contentType = 'application/xml'
+        controller.sayHello()
+
+        then:
+        response.text == '<?xml version="1.0" encoding="UTF-8"?><map><entry key="Hello">World</entry></map>'
+    }
+
+    void 'test say hello json'() {
+        when:
+        request.contentType = 'application/json'
+        controller.sayHello()
+
+        then:
+        response.text == '{"Hello":"World"}'
+    }
+}
+
+There are constants provided by ControllerUnitTestMixin for all of the common common content types as shown below:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test say hello xml'() {
+        when:
+        request.contentType = XML_CONTENT_TYPE
+        controller.sayHello()
+
+        then:
+        response.text == '<?xml version="1.0" encoding="UTF-8"?><map><entry key="Hello">World</entry></map>'
+    }
+
+    void 'test say hello json'() {
+        when:
+        request.contentType = JSON_CONTENT_TYPE
+        controller.sayHello()
+
+        then:
+        response.text == '{"Hello":"World"}'
+    }
+}
+
+The defined constants are listed below:
+
+ConstantValue
+ALL_CONTENT_TYPE*/*
+                   FORM_CONTENT_TYPEapplication/x-www-form-urlencoded
+                   MULTIPART_FORM_CONTENT_TYPEmultipart/form-data
+                   HTML_CONTENT_TYPEtext/html
+                   XHTML_CONTENT_TYPEapplication/xhtml+xml
+                   XML_CONTENT_TYPEapplication/xml
+                   JSON_CONTENT_TYPEapplication/json
+                   TEXT_XML_CONTENT_TYPEtext/xml
+                   TEXT_JSON_CONTENT_TYPEtext/json
+                   HAL_JSON_CONTENT_TYPEapplication/hal+json
+                   HAL_XML_CONTENT_TYPEapplication/hal+xml
+                   ATOM_XML_CONTENT_TYPEapplication/atom+xml
+
+Testing Duplicate Form Submissions
+
+Testing duplicate form submissions is a little bit more involved. For example if you have an action that handles a form such as:
+
+def handleForm() {
+    withForm {
+        render "Good"
+    }.invalidToken {
+        render "Bad"
+    }
+}
+
+you want to verify the logic that is executed on a good form submission and the logic that is executed on a duplicate submission. Testing the bad submission is simple. Just invoke the controller:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test duplicate form submission'() {
+        when:
+        controller.handleForm()
+
+        then:
+        response.text == 'Bad'
+    }
+}
+
+Testing the successful submission requires providing an appropriate SynchronizerToken:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+import org.codehaus.groovy.grails.web.servlet.mvc.SynchronizerTokensHolder
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test valid form submission'() {
+        when:
+        def tokenHolder = SynchronizerTokensHolder.store(session)
+
+        params[SynchronizerTokensHolder.TOKEN_URI] = '/controller/handleForm'
+        params[SynchronizerTokensHolder.TOKEN_KEY] = tokenHolder.generateToken(params[SynchronizerTokensHolder.TOKEN_URI])
+        controller.handleForm()
+
+        then:
+        response.text == 'Good'
+    }
+}
+
+If you test both the valid and the invalid request in the same test be sure to reset the response between executions of the controller:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+import org.codehaus.groovy.grails.web.servlet.mvc.SynchronizerTokensHolder
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test form submission'() {
+        when:
+        controller.handleForm()
+
+        then:
+        response.text == 'Bad'
+
+        when:
+        response.reset()
+        def tokenHolder = SynchronizerTokensHolder.store(session)
+
+        params[SynchronizerTokensHolder.TOKEN_URI] = '/controller/handleForm'
+        params[SynchronizerTokensHolder.TOKEN_KEY] = tokenHolder.generateToken(params[SynchronizerTokensHolder.TOKEN_URI])
+        controller.handleForm()
+
+        then:
+        response.text == 'Good'
+    }
+}
+
+Testing File Upload
+
+You use the GrailsMockMultipartFile class to test file uploads. For example consider the following controller action:
+
+def uploadFile() {
+    MultipartFile file = request.getFile("myFile")
+    file.transferTo(new File("/local/disk/myFile"))
+}
+
+To test this action you can register a GrailsMockMultipartFile with the request:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+import org.codehaus.groovy.grails.plugins.testing.GrailsMockMultipartFile
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test file upload'() {
+        when:
+        def file = new GrailsMockMultipartFile('myFile', 'some file contents'.bytes)
+        request.addFile file
+        controller.uploadFile()
+
+        then:
+        file.targetFileLocation.path == '/local/disk/myFile'
+    }
+}
+
+The GrailsMockMultipartFile constructor arguments are the name and contents of the file. It has a mock implementation of the transferTo method that simply records the targetFileLocation and doesn't write to disk.
+
+Testing Command Objects
+
+Special support exists for testing command object handling with the mockCommandObject method. For example consider the following action:
+
+class SimpleController {
+    def handleCommand(SimpleCommand simple) {
+        if(simple.hasErrors()) {
+            render 'Bad'
+        } else {
+            render 'Good'
+        }
+    }
+}
+
+class SimpleCommand {
+    String name
+
+    static constraints = {
+        name blank: false
+    }
+}
+
+To test this you mock the command object, populate it and then validate it as follows:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test valid command object'() {
+        given:
+        def simpleCommand = new SimpleCommand(name: 'Hugh')
+        simpleCommand.validate()
+
+        when:
+        controller.handleCommand(simpleCommand)
+
+        then:
+        response.text == 'Good'
+    }
+
+    void 'test invalid command object'() {
+        given:
+        def simpleCommand = new SimpleCommand(name: '')
+        simpleCommand.validate()
+
+        when:
+        controller.handleCommand(simpleCommand)
+
+        then:
+        response.text == 'Bad'
+    }
+}
+
+The testing framework also supports allowing Grails to create the command object instance automatically. To test this invoke the no-arg version of the controller action method. Grails will create an instance of the command object, perform data binding on it using the request parameters and validate the object just like it does in when the application is running. See the test below.
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test valid command object'() {
+        when:
+        params.name = 'Hugh'
+        controller.handleCommand()
+
+        then:
+        response.text == 'Good'
+    }
+
+    void 'test invalid command object'() {
+        when:
+        params.name = ''
+        controller.handleCommand()
+
+        then:
+        response.text == 'Bad'
+    }
+}
+
+Testing allowedMethods
+
+The unit testing environment respects the allowedMethods property in controllers. If a controller action is limited to be accessed with certain request methods, the unit test must be constructed to deal with that.
+
+// grails-app/controllers/com/demo/DemoController.groovypackage com.demo
+
+class DemoController {
+
+    static allowedMethods = [save: 'POST', update: 'PUT', delete: 'DELETE']
+
+    def save() {
+        render 'Save was successful!'
+    }
+
+    // â¦
+}
+
+// test/unit/com/demo/DemoControllerSpec.groovy
+package com.demo
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+import static javax.servlet.http.HttpServletResponse.*
+
+@TestFor(DemoController)
+class DemoControllerSpec extends Specification {
+
+    void "test a valid request method"() {
+        when:
+        request.method = 'POST'
+        controller.save()
+
+        then:
+        response.status == SC_OK
+        response.text == 'Save was successful!'
+    }
+
+    void "test an invalid request method"() {
+        when:
+        request.method = 'DELETE'
+        controller.save()
+
+        then:
+        response.status == SC_METHOD_NOT_ALLOWED
+    }
+}
+
+Testing Calling Tag Libraries
+
+You can test calling tag libraries using ControllerUnitTestMixin, although the mechanism for testing the tag called varies from tag to tag. For example to test a call to the message tag, add a message to the messageSource. Consider the following action:
+
+def showMessage() {
+    render g.message(code: "foo.bar")
+}
+
+This can be tested as follows:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+class SimpleControllerSpec extends Specification {
+
+    void 'test render message tag'() {
+        given:
+        messageSource.addMessage 'foo.bar', request.locale, 'Hello World'
+
+        when:
+        controller.showMessage()
+
+        then:
+        response.text == 'Hello World'
+    }
+}
+
+See unit testing tag libraries for more information.
+14.1.2 Unit Testing Tag Libraries
+The Basics
+
+Tag libraries and GSP pages can be tested with the grails.test.mixin.web.GroovyPageUnitTestMixin mixin. To use the mixin declare which tag library is under test with the TestFor annotation:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleTagLib)
+class SimpleTagLibSpec extends Specification {
+
+    void "test something"() {
+    }
+}
+
+Adding the TestFor annotation to a TagLib class causes a new tagLib field to be automatically created for the TagLib class under test. The tagLib field can be used to test calling tags as function calls. The return value of a function call is either a StreamCharBuffer instance or the object returned from the tag closure when returnObjectForTags feature is used.
+
+Note that if you are testing invocation of a custom tag from a controller you can combine the ControllerUnitTestMixin and the GroovyPageUnitTestMixin using the Mock annotation:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+@Mock(SimpleTagLib)
+class SimpleControllerSpec extends Specification {
+
+}
+
+Testing Custom Tags
+
+The core Grails tags don't need to be enabled during testing, however custom tag libraries do. The GroovyPageUnitTestMixin class provides a mockTagLib() method that you can use to mock a custom tag library. For example consider the following tag library:
+
+class SimpleTagLib {
+
+    static namespace = 's'
+
+    def hello = { attrs, body ->
+        out << "Hello ${attrs.name ?: 'World'}"
+    }
+
+    def bye = { attrs, body ->
+        out << "Bye ${attrs.author.name ?: 'World'}"
+    }
+}
+
+You can test this tag library by using TestFor and supplying the name of the tag library:
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleTagLib)
+class SimpleTagLibSpec extends Specification {
+
+    void "test hello tag"() {
+        expect:
+        applyTemplate('<s:hello />') == 'Hello World'
+        applyTemplate('<s:hello name="Fred" />') == 'Hello Fred'
+        applyTemplate('<s:bye author="${author}" />', [author: new Author(name: 'Fred')]) == 'Bye Fred'
+    }
+
+    void "test tag calls"() {
+        expect:
+        tagLib.hello().toString() == 'Hello World'
+        tagLib.hello(name: 'Fred').toString() == 'Hello Fred'
+        tagLib.bye(author: new Author(name: 'Fred')).toString == 'Bye Fred'
+    }
+}
+
+Alternatively, you can use the TestMixin annotation and mock multiple tag libraries using the mockTagLib() method:
+
+import spock.lang.Specification
+import grails.test.mixin.TestMixin
+import grails.test.mixin.web.GroovyPageUnitTestMixin
+
+@TestMixin(GroovyPageUnitTestMixin)
+class MultipleTagLibSpec extends Specification {
+
+    void "test multiple tags"() {
+        given:
+        mockTagLib(SomeTagLib)
+        mockTagLib(SomeOtherTagLib)
+
+        expect:
+        // â¦
+    }
+}
+
+The GroovyPageUnitTestMixin provides convenience methods for asserting that the template output equals or matches an expected value.
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(SimpleTagLib)
+class SimpleTagLibSpec extends Specification {
+
+    void "test hello tag"() {
+        expect:
+        assertOutputEquals ('Hello World', '<s:hello />')
+        assertOutputMatches (/.*Fred.*/, '<s:hello name="Fred" />')
+}
+}
+
+Testing View and Template Rendering
+
+You can test rendering of views and templates in grails-app/views via the render(Map) method provided by GroovyPageUnitTestMixin :
+
+import spock.lang.Specification
+import grails.test.mixin.TestMixin
+import grails.test.mixin.web.GroovyPageUnitTestMixin
+
+@TestMixin(GroovyPageUnitTestMixin)
+class RenderingSpec extends Specification {
+
+    void "test rendering template"() {
+        when:
+        def result = render(template: '/simple/hello')
+
+        then:
+        result == 'Hello World!'
+    }
+}
+
+This will attempt to render a template found at the location grails-app/views/simple/_hello.gsp. Note that if the template depends on any custom tag libraries you need to call mockTagLib as described in the previous section.
+
+Some core tags use the active controller and action as input. In GroovyPageUnitTestMixin tests, you can manually set the active controller and action name by setting controllerName and actionName properties on the webRequest object:
+
+webRequest.controllerName = 'simple'
+    webRequest.actionName = 'hello'
+
+14.1.3 Unit Testing Domains
+Overview
+
+Domain class interaction can be tested without involving a real database connection using DomainClassUnitTestMixin or by using the HibernateTestMixin.
+
+The GORM implementation in DomainClassUnitTestMixin is using a simple in-memory ConcurrentHashMap implementation. Note that this has limita
+The implementation behind HibernateTestMixin takes care of setting up the Hibernate with the in-memory H2 database. It only configures the given domain classes for use in a unit test. The @Domain annotation is used to tell which domain classes should be configured.
+
+DomainClassUnitTestMixin Basics
+
+DomainClassUnitTestMixin is typically used in combination with testing either a controller, service or tag library where the domain is a mock collaborator defined by the Mock annotation:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(BookController)
+@Mock(Book)
+class BookControllerSpec extends Specification {
+    // â¦
+}
+
+The example above tests the SimpleController class and mocks the behavior of the Simple domain class as well. For example consider a typical scaffolded save controller action:
+
+class BookController {
+    def save() {
+        def book = new Book(params)
+        if (book.save(flush: true)) {
+            flash.message = message(
+                code: 'default.created.message',
+                args: [message(code: 'book.label', default: 'Book'), book.id])
+            redirect(action: "show", id: book.id)
+        }
+        else {
+            render(view: "create", model: [bookInstance: book])
+        }
+    }
+}
+
+Tests for this action can be written as follows:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(BookController)
+@Mock(Book)
+class BookControllerSpec extends Specification {
+    void "test saving an invalid book"() {
+        when:
+        controller.save()
+
+        then:
+        model.bookInstance != null
+        view == '/book/create'
+    }
+
+    void "test saving a valid book"() {
+        when:
+        params.title = "The Stand"
+        params.pages = "500"
+
+        controller.save()
+
+        then:
+        response.redirectedUrl == '/book/show/1'
+        flash.message != null
+        Book.count() == 1
+    }
+}
+
+Mock annotation also supports a list of mock collaborators if you have more than one domain to mock:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(BookController)
+@Mock([Book, Author])
+class BookControllerSpec extends Specification {
+    // â¦
+}
+
+Alternatively you can also use the DomainClassUnitTestMixin directly with the TestMixin annotation and then call the mockDomain method to mock domains during your test:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.TestMixin
+import spock.lang.Specification
+import grails.test.mixin.domain.DomainClassUnitTestMixin
+
+@TestFor(BookController)
+@TestMixin(DomainClassUnitTestMixin)
+class BookControllerSpec extends Specification {
+
+    void setupSpec() {
+        mockDomain(Book)
+    }
+
+    void "test saving an invalid book"() {
+        when:
+        controller.save()
+
+        then:
+        model.bookInstance != null
+        view == '/book/create'
+    }
+
+    void "test saving a valid book"() {
+        when:
+        params.title = "The Stand"
+        params.pages = "500"
+
+        controller.save()
+
+        then:
+        response.redirectedUrl == '/book/show/1'
+        flash.message != null
+        Book.count() == 1
+    }
+}
+
+The mockDomain method also includes an additional parameter that lets you pass a Map of Maps to configure a domain, which is useful for fixture-like data:
+
+    mockDomain(Book, [
+                   [title: "The Stand", pages: 1000],
+                   [title: "The Shining", pages: 400],
+                   [title: "Along Came a Spider", pages: 300] ])
+
+Testing Constraints
+
+There are 3 types of validateable classes:
+
+    Domain classes
+    Classes which implement the Validateable trait
+    Command Objects which have been made validateable automatically
+
+These are all easily testable in a unit test with no special configuration necessary as long as the test method is marked with TestFor or explicitly applies the GrailsUnitTestMixin using TestMixin. See the examples below.
+
+// src/groovy/com/demo/MyValidateable.groovy
+package com.demo
+
+class MyValidateable implements grails.validation.Validateable {
+    String name
+    Integer age
+
+    static constraints = {
+        name matches: /[A-Z].*/
+        age range: 1..99
+    }
+}
+
+// grails-app/domain/com/demo/Person.groovy
+package com.demo
+
+class Person {
+    String name
+
+    static constraints = {
+        name matches: /[A-Z].*/
+    }
+}
+
+// grails-app/controllers/com/demo/DemoController.groovy
+package com.demo
+
+class DemoController {
+
+    def addItems(MyCommandObject co) {
+        if(co.hasErrors()) {
+            render 'something went wrong'
+        } else {
+            render 'items have been added'
+        }
+    }
+}
+
+class MyCommandObject {
+    Integer numberOfItems
+
+    static constraints = {
+        numberOfItems range: 1..10
+    }
+}
+
+// test/unit/com/demo/PersonSpec.groovy
+package com.demo
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(Person)
+class PersonSpec extends Specification {
+
+    void "Test that name must begin with an upper case letter"() {
+        when: 'the name begins with a lower letter'
+        def p = new Person(name: 'jeff')
+
+        then: 'validation should fail'
+        !p.validate()
+
+        when: 'the name begins with an upper case letter'
+        p = new Person(name: 'Jeff')
+
+        then: 'validation should pass'
+        p.validate()
+    }
+}
+
+// test/unit/com/demo/DemoControllerSpec.groovy
+package com.demo
+
+import grails.test.mixin.TestFor
+import spock.lang.Specification
+
+@TestFor(DemoController)
+class DemoControllerSpec extends Specification {
+
+    void 'Test an invalid number of items'() {
+        when:
+        params.numberOfItems = 42
+        controller.addItems()
+
+        then:
+        response.text == 'something went wrong'
+    }
+
+    void 'Test a valid number of items'() {
+        when:
+        params.numberOfItems = 8
+        controller.addItems()
+
+        then:
+        response.text == 'items have been added'
+    }
+}
+
+// test/unit/com/demo/MyValidateableSpec.groovy
+package com.demo
+
+import grails.test.mixin.TestMixin
+import grails.test.mixin.support.GrailsUnitTestMixin
+import spock.lang.Specification
+
+
+@TestMixin(GrailsUnitTestMixin)
+class MyValidateableSpec extends Specification {
+
+    void 'Test validate can be invoked in a unit test with no special configuration'() {
+        when: 'an object is valid'
+        def validateable = new MyValidateable(name: 'Kirk', age: 47)
+
+        then: 'validate() returns true and there are no errors'
+        validateable.validate()
+        !validateable.hasErrors()
+        validateable.errors.errorCount == 0
+
+        when: 'an object is invalid'
+        validateable.name = 'kirk'
+
+        then: 'validate() returns false and the appropriate error is created'
+        !validateable.validate()
+        validateable.hasErrors()
+        validateable.errors.errorCount == 1
+        validateable.errors['name'].code == 'matches.invalid'
+
+        when: 'the clearErrors() is called'
+        validateable.clearErrors()
+
+        then: 'the errors are gone'
+        !validateable.hasErrors()
+        validateable.errors.errorCount == 0
+
+        when: 'the object is put back in a valid state'
+        validateable.name = 'Kirk'
+
+        then: 'validate() returns true and there are no errors'
+        validateable.validate()
+        !validateable.hasErrors()
+        validateable.errors.errorCount == 0
+    }
+}
+
+// test/unit/com/demo/MyCommandObjectSpec.groovy
+package com.demo
+
+import grails.test.mixin.TestMixin
+import grails.test.mixin.support.GrailsUnitTestMixin
+import spock.lang.Specification
+
+@TestMixin(GrailsUnitTestMixin)
+class MyCommandObjectSpec extends Specification {
+
+    void 'Test that numberOfItems must be between 1 and 10'() {
+        when: 'numberOfItems is less than 1'
+        def co = new MyCommandObject()
+        co.numberOfItems = 0
+
+        then: 'validation fails'
+        !co.validate()
+        co.hasErrors()
+        co.errors['numberOfItems'].code == 'range.toosmall'
+
+        when: 'numberOfItems is greater than 10'
+        co.numberOfItems = 11
+
+        then: 'validation fails'
+        !co.validate()
+        co.hasErrors()
+        co.errors['numberOfItems'].code == 'range.toobig'
+
+        when: 'numberOfItems is greater than 1'
+        co.numberOfItems = 1
+
+        then: 'validation succeeds'
+        co.validate()
+        !co.hasErrors()
+
+        when: 'numberOfItems is greater than 10'
+        co.numberOfItems = 10
+
+        then: 'validation succeeds'
+        co.validate()
+        !co.hasErrors()
+    }
+}
+
+That's it for testing constraints. One final thing we would like to say is that testing the constraints in this way catches a common error: typos in the "constraints" property name which is a mistake that is easy to make and equally easy to overlook. A unit test for your constraints will highlight the problem straight away.
+
+HibernateTestMixin Basics
+
+HibernateTestMixin allows Hibernate 4 to be used in Grails unit tests. It uses a H2 in-memory database.
+
+import grails.test.mixin.TestMixin
+import grails.test.mixin.gorm.Domain
+import grails.test.mixin.hibernate.HibernateTestMixin
+import spock.lang.Specification
+
+
+@Domain(Person)
+@TestMixin(HibernateTestMixin)
+class PersonSpec extends Specification {
+
+    void "Test count people"() {
+        expect: "Test execute Hibernate count query"
+            Person.count() == 0
+            sessionFactory != null
+            transactionManager != null
+            hibernateSession != null
+    }
+}
+
+This library dependency is required in build.gradle for adding support for HibernateTestMixin.
+
+dependencies {
+        testCompile 'org.grails:grails-datastore-test-support:4.0.4.RELEASE'
+    }
+
+HibernateTestMixin is only supported with hibernate4 plugin versions >= 4.3.8.1 .
+
+dependencies {
+        compile "org.grails.plugins:hibernate:4.3.8.1"
+    }
+
+Configuring domain classes for HibernateTestMixin tests
+
+The grails.test.mixin.gorm.Domain annotation is used to configure the list of domain classes to configure for Hibernate sessionFactory instance that gets configured when the unit test runtime is initialized.
+
+Domain annotations will be collected from several locations:
+
+    the annotations on the test class
+    the package annotations in the package-info.java/package-info.groovy file in the package of the test class
+    each super class of the test class and their respective package annotations
+    the possible SharedRuntime class
+
+Domain annotations can be shared by adding them as package annotations to package-info.java/package-info.groovy files or by adding them to a SharedRuntime class which has been added for the test.
+
+It's not possible to use DomainClassUnitTestMixin's Mock annotation in HibernateTestMixin tests. Use the Domain annotation in the place of Mock in HibernateTestMixin tests.
+14.1.4 Unit Testing Filters
+Unit testing filters is typically a matter of testing a controller where a filter is a mock collaborator. For example consider the following filters class:
+
+class CancellingFilters {
+    def filters = {
+        all(controller:"simple", action:"list") {
+            before = {
+                redirect(controller:"book")
+                return false
+            }
+        }
+    }
+}
+
+This filter interceptors the list action of the simple controller and redirects to the book controller. To test this filter you start off with a test that targets the SimpleController class and add the CancellingFilters as a mock collaborator:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+@Mock(CancellingFilters)
+class SimpleControllerSpec extends Specification {
+
+    // ...
+
+}
+
+You can then implement a test that uses the withFilters method to wrap the call to an action in filter execution:
+
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(SimpleController)
+@Mock(CancellingFilters)
+class SimpleControllerSpec extends Specification {
+
+    void "test list action is filtered"() {
+        when:
+        withFilters(action:"list") {
+            controller.list()
+        }
+
+        then:
+        response.redirectedUrl == '/book'
+    }
+}
+
+Note that the action parameter is required because it is unknown what the action to invoke is until the action is actually called. The controller parameter is optional and taken from the controller under test. If it is another controller you are testing then you can specify it:
+
+withFilters(controller:"book",action:"list") {
+    controller.list()
+}
+
+14.1.5 Unit Testing URL Mappings
+The Basics
+
+Testing URL mappings can be done with the TestFor annotation testing a particular URL mappings class. For example to test the default URL mappings you can do the following:
+
+import com.demo.SimpleController
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(UrlMappings)
+@Mock(SimpleController)
+class UrlMappingsSpec extends Specification {
+    // â¦
+}
+
+As you can see, any controller that is the target of a URL mapping that you're testing must be added to the @Mock annotation.
+
+    Note that since the default UrlMappings class is in the default package your test must also be in the default package 
+
+With that done there are a number of useful methods that are defined by the grails.test.mixin.web.UrlMappingsUnitTestMixin for testing URL mappings. These include:
+
+assertForwardUrlMapping - Asserts a URL mapping is forwarded for the given controller class (note that controller will need to be defined as a mock collaborate for this to work)
+    assertReverseUrlMapping - Asserts that the given URL is produced when reverse mapping a link to a given controller and action
+    assertUrlMapping - Asserts a URL mapping is valid for the given URL. This combines the assertForwardUrlMapping and assertReverseUrlMapping assertions
+
+Asserting Forward URL Mappings
+
+You use assertForwardUrlMapping to assert that a given URL maps to a given controller. For example, consider the following URL mappings:
+
+    static mappings = {
+        "/actionOne"(controller: "simple", action: "action1")
+        "/actionTwo"(controller: "simple", action: "action2")
+    }
+
+    The following test can be written to assert these URL mappings:
+
+import com.demo.SimpleController
+import grails.test.mixin.TestFor
+import grails.test.mixin.Mock
+import spock.lang.Specification
+
+@TestFor(UrlMappings)
+@Mock(SimpleController)
+class UrlMappingsSpec extends Specification {
+
+    void "test forward mappings"() {
+        expect:
+        assertForwardUrlMapping("/actionOne", controller: 'simple', action: "action1")
+        assertForwardUrlMapping("/actionTwo", controller: 'simple', action: "action2")
+    }
+}
+
+Assert Reverse URL Mappings
+
+You use assertReverseUrlMapping to check that correct links are produced for your URL mapping when using the link tag in GSP views. An example test is largely identical to the previous listing except you use assertReverseUrlMapping instead of assertForwardUrlMapping. Note that you can combine these 2 assertions with assertUrlMapping.
+14.1.6 Mocking Collaborators
+The Spock Framework manual has a chapter on Interaction Based Testing which also explains mocking collaborators.
+14.1.7 Mocking Codecs
+The GrailsUnitTestMixin provides a mockCodec method for mocking custom codecs which may be invoked while a unit test is running.
+
+mockCodec(MyCustomCodec)
+
+Failing to mock a codec which is invoked while a unit test is running may result in a MissingMethodException.
+14.1.8 Unit Test Metaprogramming
+If runtime metaprogramming needs to be done in a unit test it needs to be done early in the process before the unit testing environment is fully initialized. This should be done when the unit test class is being initialized. For a Spock based test this should be done in the setupSpec() method. For a JUnit test this should be done in a method marked with @BeforeClass.
+
+package myapp
+
+import grails.test.mixin.*
+import spock.lang.Specification
+
+@TestFor(SomeController)
+class SomeControllerSpec extends Specification {
+
+
+    def setupSpec() {
+        SomeClass.metaClass.someMethod = { ->
+            // do something here
+        }
+    }
+
+    // â¦
+}
+
+package myapp
+
+import grails.test.mixin.*
+import org.junit.*
+
+@TestFor(SomeController)
+class SomeControllerTests {
+
+    @BeforeClass
+    static void metaProgramController() {
+        SomeClass.metaClass.someMethod = { ->
+            // do something here
+        }
+    }
+
+    // ...
+
+}
+
+14.2 Integration Testing
+Integration tests differ from unit tests in that you have full access to the Grails environment within the test. You can create an integration test using the create-integration-test command:
+
+$ grails create-integration-test Example
+
+The above command will create a new integration test at the location src/integration-test/groovy/<PACKAGE>/ExampleSpec.groovy.
+
+Grails uses the test environment for integration tests and loads the application prior to the first test run. All tests use the same application state.
+
+Transactions
+
+Integration tests run inside a database transaction by default, which is rolled back at the end of the each test. This means that data saved during a test is not persisted to the database (which is shared across all tests). The default generated integration test template includes the Rollback annotation:
+
+import grails.test.mixin.integration.Integration
+import grails.transaction.*
+import spock.lang.*
+
+@Integration
+@Rollback
+class artifact.nameSpec extends Specification {
+
+    ...
+
+    void "test something"() {
+        expect:"fix me"
+            true == false
+    }
+}
+
+The Rollback annotation ensures that each test methods runs in a transaction that is rolled back. Generally this is desirable because you do not want your tests depending on order or application state.
+
+Using Spring's Rollback annotation
+In Grails 3.0 tests rely on grails.transaction.Rollback annotation to bind the session in integration tests. But with this approach the setup() and setupSpec() method in the test is run prior to the transaction starting hence you would see No Hibernate Session found error while running integration test if setup() sets up data and persists them as shown in the below sample:
+
+import grails.test.mixin.integration.Integration
+import grails.transaction.*
+import spock.lang.*
+
+@Integration
+@Rollback
+class artifact.nameSpec extends Specification {
+
+    void setup() {
+        // Below line would throw a Hibernate session not found error
+        new Book(name: 'Grails in Action').save(flush: true)
+    }
+
+    void "test something"() {
+        expect:
+        Book.count() == 1
+    }
+}
+
+To make sure the setup logic runs within the transaction you have to move it to be called from the method itself. Similar to usage of setupData() method shown below:
+
+import grails.test.mixin.integration.Integration
+import grails.transaction.*
+import spock.lang.*
+
+@Integration
+@Rollback
+class artifact.nameSpec extends Specification {
+
+    void setupData() {
+        new Book(name: 'Grails in Action').save(flush: true)
+    }
+
+    void "test something"() {
+        given:
+        setupData()
+
+        expect:
+        Book.count() == 1
+    }
+}
+
+Another approach could be to use Spring's @Rollback instead.
+
+import grails.test.mixin.integration.Integration
+import org.springframework.test.annotation.Rollback
+import spock.lang.*
+
+@Integration
+@Rollback
+class artifact.nameSpec extends Specification {
+
+    void setup() {
+        new Book(name: 'Grails in Action').save(flush: true)
+    }
+
+    void "test something"() {
+        expect:
+        Book.count() == 1
+    }
+}
+
+It isn't possible to make grails.transaction.Rollback behave the same way as Spring's Rollback annotation because grails.transaction.Rollback transforms the byte code of the class, eliminating the need for a proxy (which Spring's version requires). This has the downside that you cannot implement it differently for different cases (as Spring does for testing). 
+
+DirtiesContext
+
+If you do have a series of tests that will share state you can remove the Rollback and the last test in the suite should feature the DirtiesContext annotation which will shutdown the environment and restart it fresh (note that this will have an impact on test run times).
+
+Autowiring
+
+To obtain a reference to a bean you can use the Autowired annotation. For example:
+
+â¦
+import org.springframework.beans.factory.annotation.*
+
+@Integration
+@Rollback
+class artifact.nameSpec extends Specification {
+
+    @Autowired
+    ExampleService exampleService
+    ...
+
+    void "Test example service"() {
+        expect:
+            exampleService.countExamples() == 0
+    }
+}
+
+Testing Controllers
+
+To integration test controllers it is recommended you use create-functional-test command to create a Geb functional test. See the following section on functional testing for more information.
+14.3 Functional Testing
+Functional tests involve making HTTP requests against the running application and verifying the resultant behaviour. The functional testing phase differs from the integration phase in that the Grails application is now listening and responding to actual HTTP requests. This is useful for end-to-end testing scenarios, such as making REST calls against a JSON API.
+
+Grails by default ships with support for writing functional tests using the Geb framework. To create a functional test you can use the create-functional-test command which will create a new functional test:
+
+$ grails create-functional-test MyFunctional
+
+The above command will create a new Spock spec called MyFunctionalSpec.groovy in the src/integration-test/groovy directory. The test is annotated with the Integration annotation to indicate it is a integration test and extends the GebSpec super class:
+
+@Integration
+class HomeSpec extends GebSpec {
+
+    def setup() {
+    }
+
+    def cleanup() {
+    }
+
+    void "Test the home page renders correctly"() {
+        when:"The home page is visited"
+            go '/'
+
+        then:"The title is correct"
+            $('title').text() == "Welcome to Grails"
+    }
+}
+
+When the test is run the application container will be loaded up in the background and you can send requests to the running application using the Geb API.
+
+Note that the application is only loaded once for the entire test run, so functional tests share the state of the application across the whole suite.
+
+In addition the application is loaded in the JVM as the test, this means that the test has full access to the application state and can interact directly with data services such as GORM to setup and cleanup test data.
+
+The Integration annotation supports an optional applicationClass attribute which may be used to specify the application class to use for the functional test. The class must extend GrailsAutoConfiguration.
+
+@Integration(applicationClass=com.demo.Application)
+class HomeSpec extends GebSpec {
+
+    // ...
+
+}
+
+If the applicationClass is not specified then the test runtime environment will attempt to locate the application class dynamically which can be problematic in multiproject builds where multiple application classes may be present.
+<< 13Static Type Checking And Compilation
+15Internationalization >>
+tions compared to a real GORM implementation.
+
+A large, commonly-used portion of the GORM API can be mocked using DomainClassUnitTestMixin including:
+
+    Simple persistence methods like save(), delete() etc.
+    Dynamic Finders
+    Named Queries
+    Query-by-example
+    GORM Events
+
+HibernateTestMixin uses Hibernate 4 and a H2 in-memory database. This makes it possible to use all GORM features also in Grails unit tests.
+
+All features of GORM for Hibernate can be tested within a HibernateTestMixin unit test including:
+
+    String-based HQL queries
+    composite identifiers
+    dirty checking methods
+    any direct interaction with Hibernate
+
+
+/**
+ * See the API for {@link grails.test.mixin.web.ControllerUnitTestMixin} for usage instructions
+ */
+@TestFor(NoSuperController)
+class NoSuperControllerSpec extends Specification {
+    void "test index"() {
+        when:
+        controller.index()
+
+        then:
+        response.status == SC_OK
+    }
+}

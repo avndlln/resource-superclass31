@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="test.SuperControllerSpec" tests="1" skipped="0" failures="0" errors="0" timestamp="2016-02-01T22:08:18" hostname="precise64" time="0.307">
+  <properties/>
+  <testcase name="test index" classname="test.SuperControllerSpec" time="0.307"/>
+  <system-out><![CDATA[ERROR grails.app.domain.test.SuperController - Log message from BaseController::index
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

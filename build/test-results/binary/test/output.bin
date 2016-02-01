@@ -1,0 +1,2 @@
+`ERROR grails.app.controllers.test.NoSuperController - Log message from NoSuperController::index
+VERROR grails.app.domain.test.SuperController - Log message from BaseController::index
