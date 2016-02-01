@@ -2,7 +2,7 @@ package test
 
 import grails.rest.Resource
 
-@Resource(uri='/not-using-super')
+@Resource
 class NoSuper {
     static constraints = {
     }
