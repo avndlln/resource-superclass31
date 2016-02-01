@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="test.DemoSpec" tests="2" skipped="0" failures="1" errors="0" timestamp="2016-02-01T22:08:22" hostname="precise64" time="67.946">
+<testsuite name="test.DemoSpec" tests="2" skipped="0" failures="1" errors="0" timestamp="2016-02-01T22:14:06" hostname="precise64" time="128.035">
   <properties/>
-  <testcase name="test with Resource superClass" classname="test.DemoSpec" time="67.869">
+  <testcase name="test with Resource superClass" classname="test.DemoSpec" time="127.961">
     <failure message="wslite.rest.RESTClientException: 500 Internal Server Error" type="wslite.rest.RESTClientException">wslite.rest.RESTClientException: 500 Internal Server Error
 	at wslite.rest.RESTClient.executeMethod(RESTClient.groovy:107)
 	at wslite.rest.RESTClient.get(RESTClient.groovy:49)
@@ -23,7 +23,7 @@ Caused by: java.io.IOException: Server returned HTTP response code: 500 for URL:
 	... 10 more
 </failure>
   </testcase>
-  <testcase name="test explicit derived Controller" classname="test.DemoSpec" time="0.077"/>
+  <testcase name="test explicit derived Controller" classname="test.DemoSpec" time="0.074"/>
   <system-out><![CDATA[Grails application running at http://localhost:8080 in environment: test
 ERROR StackTrace - Full Stack Trace:
 groovy.lang.MissingPropertyException: No such property: log for class: test.SuperController

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="test.NoSuperControllerSpec" tests="1" skipped="0" failures="0" errors="0" timestamp="2016-02-01T22:08:15" hostname="precise64" time="3.258">
+<testsuite name="test.NoSuperControllerSpec" tests="1" skipped="0" failures="0" errors="0" timestamp="2016-02-01T22:13:59" hostname="precise64" time="3.137">
   <properties/>
-  <testcase name="test index" classname="test.NoSuperControllerSpec" time="3.258"/>
+  <testcase name="test index" classname="test.NoSuperControllerSpec" time="3.137"/>
   <system-out><![CDATA[ERROR grails.app.controllers.test.NoSuperController - Log message from NoSuperController::index
 ]]></system-out>
   <system-err><![CDATA[]]></system-err>
